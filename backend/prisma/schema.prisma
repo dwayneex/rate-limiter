@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  apiKey      String   @unique @default(uuid())
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rateLimits  RateLimit[]
+  requestLogs RequestLog[]
+
+  @@map("tenants")
+}
+
+enum RateLimitType {
+  GLOBAL      // Tenant-wide limit
+  IP_ADDRESS  // Per IP address
+  API_ROUTE   // Per API endpoint
+  USER_ID     // Per user ID
+}
+
+model RateLimit {
+  id          String        @id @default(uuid())
+  tenantId    String
+  type        RateLimitType
+  identifier  String?       // null for GLOBAL, apiRoute for API_ROUTE
+  maxRequests Int           // Max requests allowed
+  windowMs    Int           // Time window in milliseconds
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type, identifier])
+  @@map("rate_limits")
+}
+
+model RequestLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  apiRoute    String?
+  ipAddress   String?
+  userId      String?
+  isAllowed   Boolean
+  timestamp   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, timestamp])
+  @@map("request_logs")
+}
